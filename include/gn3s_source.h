@@ -55,7 +55,7 @@ class gn3s_Source
 		int soverflw;			//!< Overflow counter
 
 		/* Data buffers */
-		signed char gbuff[GN3S_SAMPS_5MS*2]; 	//!< Byte buffer for GN3S
+        unsigned char gbuff[GN3S_SAMPS_5MS*2]; 	//!< Byte buffer for GN3S
 		GN3S_CPX buff[GN3S_SAMPS_5MS]; 		//!< Base buffer for GN3S
 
 		/* SOURCE_SIGE_GN3S Handles */

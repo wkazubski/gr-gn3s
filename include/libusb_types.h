@@ -23,8 +23,8 @@
 #ifndef _LIBUSB_TYPES_H_
 #define _LIBUSB_TYPES_H_
 
-#if 0
-#include <libusb-1.0/libusb.h>
+#if 1
+#include <libusb.h>
 struct libusb_device;
 struct libusb_device_handle;
 struct libusb_device_descriptor;

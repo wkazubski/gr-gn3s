@@ -37,10 +37,7 @@
 #include <errno.h>
 #include <string.h>
 #include <math.h>
-#include "fusb.h"
-#include "fusb_linux.h"
-//#include "usrp_bytesex.h"
-//#include "usrp_prims.h"
+#include <libusb.h>
 /*--------------------------------------------------------------*/
 
 
@@ -50,9 +47,7 @@ struct fx2Config
 {
 	int interface;
 	int altinterface;
-	usb_dev_handle *udev;
-	fusb_ephandle *d_ephandle;
-	fusb_devhandle *d_devhandle;
+    libusb_device_handle *udev;
 };
 /*--------------------------------------------------------------*/
 
@@ -77,9 +72,11 @@ struct fx2Config
 #define VID_OLD  	 		(0x1781)
 #define PID_OLD  	 		(0x0B39)
 #define PROG_SET_CMD 		(0xE600)
-#define FUSB_BUFFER_SIZE 	(16 * (1L << 20)) 	//!< 8 MB
-#define FUSB_BLOCK_SIZE  	(16 * (1L << 10)) 	//!< 16KB is hard limit
-#define FUSB_NBLOCKS		(FUSB_BUFFER_SIZE / FUSB_BLOCK_SIZE)
+#define USB_BUFFER_SIZE     (16384)           //!< 8 MB
+#define USB_BLOCK_SIZE      (512)             //!< 16KB is hard limit
+#define USB_NBLOCKS         (USB_BUFFER_SIZE / USB_BLOCK_SIZE)
+#define USB_NTRANSFERS      (16)
+#define USB_TIMEOUT         (1000)
 /*--------------------------------------------------------------*/
 
 
@@ -103,8 +100,9 @@ class gn3s
 
 		/* GN3S FX2 Stuff */
 		struct fx2Config fx2_config;
-		struct usb_device *fx2_device;
-		struct usb_dev_handle *fx2_handle;
+        struct libusb_device *fx2_device;
+        struct libusb_device_handle *fx2_handle;
+        struct libusb_transfer *transfer[USB_NTRANSFERS];
 
 		/* USB IDs */
 		unsigned int gn3s_vid, gn3s_pid;
@@ -120,10 +118,10 @@ class gn3s
 		~gn3s();				//!< Destructor
 
 		/* FX2 functions */
-		struct usb_device* usb_fx2_find(int vid, int pid, char info, int ignore);
-		bool usb_fx2_configure(struct usb_device *fx2, fx2Config *fx2c);
-		fusb_devhandle* make_devhandle (usb_dev_handle *udh);
-		int read(void *buff, int bytes);
+        struct libusb_device* usb_fx2_find(unsigned int vid, unsigned int pid, char info, int ignore);
+        bool usb_fx2_configure(struct libusb_device *fx2, fx2Config *fx2c);
+        bool usb_fx2_start_transfers();
+        int read(unsigned char *buff, int bytes);
 		int write_cmd(int request, int value, int index, unsigned char *bytes, int len);
 		bool _get_status(int which, bool *trouble);
 		bool check_rx_overrun();
@@ -131,7 +129,7 @@ class gn3s
 
 		/* Used to flash the GN3S */
 		int atoz(char *s);
-		void upload_ram(char *buf, int start, int len);
+        void upload_ram(unsigned char *buf, int start, int len);
 		void program_fx2(char *filename, char mem);
 		int prog_gn3s_board();
 

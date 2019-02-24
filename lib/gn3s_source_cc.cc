@@ -79,7 +79,7 @@ gn3s_source_cc::gn3s_source_cc ()
 gn3s_source_cc::~gn3s_source_cc ()
 {
   // destructor code here
-	if(gn3s_drv != NULL)
+    if(gn3s_drv != nullptr)
 	{
 		fprintf(stdout,"Destructing GN3S\n");
 		delete gn3s_drv;

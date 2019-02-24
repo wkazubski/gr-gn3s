@@ -29,25 +29,67 @@
 #include <iostream>
 #include <fstream>
 #include <stdlib.h>
-#include <usb.h>
-#include "fusb_linux.h"
+#include <libusb.h>
 
 static char debug = 1; //!< 1 = Verbose
+
+static libusb_context *ctx = nullptr;
+static unsigned char buffer[USB_NTRANSFERS][USB_BUFFER_SIZE];
+static int bcount;
+static int bufptr;
+
+/*----------------------------------------------------------------------------------------------*/
+/*!
+ * All libusb callback functions should be marked with the LIBUSB_CALL macro
+ * to ensure that they are compiled with the same calling convention as libusb.
+ */
+
+//libusb_transfer_cb_fn
+static void LIBUSB_CALL callback(libusb_transfer *transfer)
+{
+    bcount += transfer->actual_length;
+    if (bcount > sizeof(buffer))
+        bcount -= sizeof(buffer);
+//TEST
+    printf("***Callback!****\n");
+//    time(&rawtime);
+//    timeinfo = localtime (&rawtime);
+    printf("bytes: %d status: %d count %d \n", transfer->actual_length, transfer->status, bcount);
+    fflush(stdout);
+//TEST
+    libusb_submit_transfer(transfer);
+}
+/*----------------------------------------------------------------------------------------------*/
+
 
 /*----------------------------------------------------------------------------------------------*/
 gn3s::gn3s(int _which)
 {
 
-		//int fsize;
+        //int fsize;
 		bool ret;
+        int r;
 		which = _which;
 
-		fx2_device 	= NULL;
-		fx2_handle 	= NULL;
+        fx2_device 	= nullptr;
+        fx2_handle 	= nullptr;
 		gn3s_vid 	= GN3S_VID;
 		gn3s_pid 	= GN3S_PID;
 
-		/* Get the firmware embedded in the executable */
+        r = libusb_init(&ctx);
+        if (r < 0)
+        {
+            printf("Libusb init error: %s\n", libusb_error_name(ret));
+            throw (1);
+        }
+
+#if LIBUSB_API_VERSION >= 0x01000106
+        libusb_set_option(ctx, LIBUSB_OPTION_LOG_LEVEL, LIBUSB_LOG_LEVEL_INFO);
+#else
+        libusb_set_debug(ctx, 3);
+#endif
+
+        /* Get the firmware embedded in the executable */
 		//fstart = (int) &_binary_usrp_gn3s_firmware_ihx_start;
 		//fsize = strlen(_binary_usrp_gn3s_firmware_ihx_start);
 		//gn3s_firmware = new char[fsize + 10];
@@ -59,12 +101,12 @@ gn3s::gn3s(int _which)
 		//gn3s_firmware[fsize] = NULL;
 
 		/* Search all USB busses for the device specified by VID/PID */
-		fx2_device = usb_fx2_find(gn3s_vid, gn3s_pid, debug, 0);
-		if (!fx2_device)
+        fx2_device = usb_fx2_find(gn3s_vid, gn3s_pid, debug, 0);
+        if (!fx2_device)
 		{
 			/* Program the board */
-			ret = prog_gn3s_board();
-			if(ret)
+            ret = prog_gn3s_board();
+            if(ret)
 			{
 				fprintf(stdout, "Could not flash GN3S device\n");
 				throw(1);
@@ -78,7 +120,7 @@ gn3s::gn3s(int _which)
 		}
 		else
 		{
-			fprintf(stdout, "Found GN3S Device\n");
+            fprintf(stdout, "Found GN3S Device\n");
 		}
 
 		/* Open and configure FX2 device if found... */
@@ -87,9 +129,17 @@ gn3s::gn3s(int _which)
 		{
 			fprintf(stdout, "Could not obtain a handle to the GN3S device\n");
 			throw(1);
+        }
 
-	}
-
+        ret = usb_fx2_start_transfers();
+        if(!ret)
+        {
+            printf("Could not start USB transfers\n");
+            throw(1);
+        }
+//TEST
+        printf("Transfers started\n");
+//TEST
 }
 /*----------------------------------------------------------------------------------------------*/
 
@@ -100,12 +150,11 @@ gn3s::~gn3s()
 
 	usrp_xfer(VRQ_XFER, 0);
 
-	//delete gn3s_firmware;
-	delete fx2_config.d_ephandle;
-	delete fx2_config.d_devhandle;
+    //delete gn3s_firmware;
 
-	usb_release_interface(fx2_config.udev, fx2_config.interface);
-	usb_close(fx2_config.udev);
+    libusb_release_interface(fx2_handle, RX_INTERFACE);
+    libusb_close(fx2_handle);
+    libusb_exit(ctx);
 
 }
 /*----------------------------------------------------------------------------------------------*/
@@ -115,44 +164,24 @@ gn3s::~gn3s()
 int gn3s::prog_gn3s_board()
 {
 
-	char a;
-	struct usb_bus *bus;
-	struct usb_device *dev;
-	//struct usb_dev_handle *han;
-	int vid, pid;
-
-	dev = NULL;
-
-	usb_init();
-	usb_find_busses();
-	usb_find_devices();
+    unsigned char a;
+    unsigned int vid, pid;
 
 	vid = (VID_OLD);
 	pid = (PID_OLD);
 
-	for(bus = usb_busses; bus; bus = bus->next)
-	{
-		for(dev = bus->devices; dev; dev = dev->next)
-		{
-			if((dev->descriptor.idVendor == vid) &&	(dev->descriptor.idProduct == pid))
-			{
-				fx2_device = dev;
-				fprintf(stdout,"GN3S Device Found... awaiting firmware flash \n");
-				break;
-			}
-		}
-	}
+    fx2_device = usb_fx2_find(vid, pid, debug, 0);
 
-	if(fx2_device == NULL)
+    if(fx2_device == nullptr)
 	{
 		fprintf(stderr,"Cannot find vid 0x%x pid 0x%x \n", vid, pid);
 		return -1;
 	}
 
-	printf("Using device vendor id 0x%04x product id 0x%04x\n",
-			fx2_device->descriptor.idVendor, fx2_device->descriptor.idProduct);
+//	printf("Using device vendor id 0x%04x product id 0x%04x\n",
+//			fx2_device->descriptor.idVendor, fx2_device->descriptor.idProduct);
 
-	fx2_handle = usb_open(fx2_device);
+    int ret = libusb_open(fx2_device, &fx2_handle);
 
 	/* Do the first set 0xE600 1 */
 	char c[] = "1";
@@ -164,7 +193,7 @@ int gn3s::prog_gn3s_board()
 
 	upload_ram(&a, (PROG_SET_CMD),1);
 
-	program_fx2(NULL, 1);
+    program_fx2(nullptr, 1);
 
 	a = atoz(d);
 
@@ -172,7 +201,7 @@ int gn3s::prog_gn3s_board()
 
 	fprintf(stdout,"GN3S flash complete! \n");
 
-	usb_close(fx2_handle);
+    libusb_close(fx2_handle);
 
 	return(0);
 }
@@ -184,7 +213,7 @@ int gn3s::atoz(char *s)
 {
     int a;
     if(!strncasecmp("0x", s, 2)){
-        sscanf(s, "%x", &a);
+        sscanf(s, "%x",&a);
         return a;
     }
     return atoi(s);
@@ -193,10 +222,10 @@ int gn3s::atoz(char *s)
 
 
 /*----------------------------------------------------------------------------------------------*/
-void gn3s::upload_ram(char *buf, int start, int len)
+void gn3s::upload_ram(unsigned char *buf, int start, int len)
 {
 	int i;
-	int tlen;
+    int tlen;
 	int quanta = 16;
 	int a;
 
@@ -208,12 +237,12 @@ void gn3s::upload_ram(char *buf, int start, int len)
 
 		if (debug >= 3)
 			printf("i = %d, tlen = %d \n", i, tlen);
-		a = usb_control_msg(fx2_handle, 0x40, 0xa0, i, 0,
+        a = libusb_control_transfer(fx2_handle, 0x40, 0xa0, i, 0,
 				buf + (i - start), tlen, 1000);
 
 		if (a < 0) {
 			fprintf(stderr, "Request to upload ram contents failed: %s\n",
-					usb_strerror());
+                    libusb_error_name(a));
 			return;
 		}
 	}
@@ -226,7 +255,7 @@ void gn3s::program_fx2(char *filename, char mem)
 {
 	FILE *f;
 	char s[1024];
-	char data[256];
+    unsigned char data[256];
 	char checksum, a;
 	int length, addr, type, i;
 	unsigned int b;
@@ -240,7 +269,7 @@ void gn3s::program_fx2(char *filename, char mem)
 	//rewind(f);
 
 	  f = fopen ("gn3s_firmware.ihx","r");
-	  if (f!=NULL)
+      if (f!=nullptr)
 	  {
 		printf("GN3S firmware file found!\n");
 	  }else{
@@ -269,10 +298,10 @@ void gn3s::program_fx2(char *filename, char mem)
 				sscanf(s + 9 + i * 2, "%02x", &b);
 				data[i] = b;
 				a = a + data[i];
-			}
+            }
 
 			sscanf(s + 9 + length * 2, "%02x", &b);
-			checksum = b;
+            checksum = b;
 
 			if (((a + checksum) & 0xff) != 0x00) {
 				printf("  ** Checksum failed: got 0x%02x versus 0x%02x\n", (-a)
@@ -293,7 +322,7 @@ void gn3s::program_fx2(char *filename, char mem)
 			} else {
 				if (type == 0x02) {
 					printf("Extended address: whatever I do with it ?\n");
-					continue;
+                    continue;
 				}
 			}
 		}
@@ -305,85 +334,32 @@ void gn3s::program_fx2(char *filename, char mem)
 
 
 /*----------------------------------------------------------------------------------------------*/
-struct usb_device* gn3s::usb_fx2_find(int vid, int pid, char info, int ignore)
+struct libusb_device* gn3s::usb_fx2_find(unsigned int vid, unsigned int pid, char info, int ignore)
 {
-	struct usb_bus *bus;
-	struct usb_device *dev;
-	struct usb_device *fx2 = NULL;
-	usb_dev_handle *udev;
-	int count = 0;
-	int ret;
-	char str[256];
+    libusb_device **devs;
+    struct libusb_device *fx2 = nullptr;
+    long count = 0;
+    int ret;
 
-	usb_init();
-	usb_find_busses();
-	usb_find_devices();
+    count = libusb_get_device_list(ctx, &devs);
+    if (count < 0)
+    {
+        printf("Unable to list devices\n");;
+    }
+    else
+    {
+        for (int idx=0; idx < count; ++idx)
+        {
+            libusb_device *dev = devs[idx];
+            libusb_device_descriptor desc = {0};
 
-	for(bus = usb_busses; bus; bus = bus->next)
-	{
-		for(dev = bus->devices; dev; dev = dev->next)
-		{
-			if((dev->descriptor.idVendor == vid) && (dev->descriptor.idProduct == pid))
-			{
-				fx2 = dev;
-			}
+            ret = libusb_get_device_descriptor (dev, &desc);
+            if ((desc.idVendor == vid) && (desc.idProduct == pid))
+                 fx2 = dev;
+        }
+    }
 
-			if(fx2 != NULL && info)
-			{
-				udev = usb_open(fx2);
-				if(udev && dev->descriptor.idVendor == vid && dev->descriptor.idProduct == pid && count < ignore)
-				{
-					if(fx2->descriptor.iManufacturer)
-					{
-						ret = usb_get_string_simple(udev, fx2->descriptor.iManufacturer, str, sizeof(str));
-
-						if(ret > 0)
-							printf("- Manufacturer : %s\n", str);
-						else
-							printf("- Unable to fetch manufacturer string\n");
-					}
-
-					if(fx2->descriptor.iProduct)
-					{
-						ret = usb_get_string_simple(udev, fx2->descriptor.iProduct, str, sizeof(str));
-
-						if(ret > 0)
-							printf("- Product : %s\n", str);
-						else
-							printf("- Unable to fetch product string\n");
-					}
-
-					if(fx2->descriptor.iSerialNumber)
-					{
-						ret = usb_get_string_simple(udev, fx2->descriptor.iSerialNumber, str, sizeof(str));
-
-						if(ret > 0)
-							printf("- Serial Number: %s\n", str);
-						else
-							printf("- Unable to fetch serial number string\n");
-					}
-
-					usb_close (udev);
-					return fx2;
-				}
-				else if(udev && dev->descriptor.idVendor == vid && dev->descriptor.idProduct == pid && count >= ignore)
-				{
-					count++;
-				}
-
-				if(!fx2->config)
-				{
-					printf(" Could not retrieve descriptors\n");
-					continue;
-				}
-
-				for(int i = 0; i < fx2->descriptor.bNumConfigurations; i++)
-				{
-					//print_configuration(&fx2->config[i]);
-				}
-			}
-		}
-	}
+    libusb_free_device_list(devs, 1);
 
 	return fx2;
 }
@@ -391,21 +367,17 @@ struct usb_device* gn3s::usb_fx2_find(int vid, int pid, char info, int ignore)
 
 
 /*----------------------------------------------------------------------------------------------*/
-bool gn3s::usb_fx2_configure(struct usb_device *fx2, fx2Config *fx2c)
+bool gn3s::usb_fx2_configure(struct libusb_device *fx2, fx2Config *fx2c)
 {
 
   char status = 0;
-  int interface = RX_INTERFACE;
-  int altinterface = RX_ALTINTERFACE;
-  usb_dev_handle *udev;
-  fusb_ephandle *d_ephandle;
-  fusb_devhandle *d_devhandle;
+  int ret;
 
-  udev = usb_open(fx2);
+  ret = libusb_open(fx2_device, &fx2_handle);
 
-  if(!udev)
+  if(ret != 0)
   {
-      fprintf(stdout, "Could not obtain a handle to GNSS Front-End device \n");
+      printf("Could not obtain a handle to GNSS Front-End device \n");
       return -1;
   }
   else
@@ -413,81 +385,86 @@ bool gn3s::usb_fx2_configure(struct usb_device *fx2, fx2Config *fx2c)
 	  if(debug)
 		  printf("Received handle for GNSS Front-End device \n");
 
-      if(usb_set_configuration (udev, 1) < 0)
+      ret = libusb_set_configuration (fx2_handle, 1);
+      if(ret != 0)
       {
-          fprintf (stdout,
-                  "error in %s, \n%s \n",
-                  __FUNCTION__,
-                  usb_strerror());
-          usb_close (udev);
+          printf("FX2 configure error: %s\n", libusb_error_name(ret));
+          libusb_close (fx2_handle);
           status = -1;
       }
 
-      if(usb_claim_interface (udev, interface) < 0)
+      ret = libusb_claim_interface (fx2_handle, RX_INTERFACE);
+      if (ret < 0)
       {
-          fprintf (stdout,
-                  "error in %s, \n%s \n",
-                  __FUNCTION__,
-                  usb_strerror());
-          usb_close (udev);
-          fprintf (stdout, "\nDevice not programmed? \n");
-          usb_close (udev);
+          printf("Interface claim error: %s\n", libusb_error_name(ret));
+          printf ("\nDevice not programmed? \n");
+          libusb_close (fx2_handle);
           status = -1;
-          throw(0);
-      }
-
-      if(usb_set_altinterface (udev, altinterface) < 0)
+     }    ret = usb_fx2_start_transfers();
+      if(!ret)
       {
-          fprintf (stdout,
-                  "error in %s, \n%s \n",
-                  __FUNCTION__,
-                  usb_strerror());
-          usb_close (udev);
-          usb_release_interface (udev, interface);
-          usb_close (udev);
-          status = -1;
+          printf("Could not start USB transfers\n");
+          throw(1);
       }
 
-      d_devhandle = make_devhandle(udev);
-      d_ephandle = d_devhandle->make_ephandle(RX_ENDPOINT, true, FUSB_BLOCK_SIZE, FUSB_NBLOCKS);
-
-      if(!d_ephandle->start())
-      {
-          fprintf (stdout, "usrp0_rx: failed to start end point streaming");
-          usb_strerror ();
-          status = -1;
-      }
-
-      if(status == 0)
-      {
-          fx2c->interface = interface;
-          fx2c->altinterface = altinterface;
-          fx2c->udev = udev;
-          fx2c->d_devhandle = d_devhandle;
-          fx2c->d_ephandle = d_ephandle;
-          return 0;
-      }
       else
+          printf("Claimed interface\n");
+
+      ret = libusb_set_interface_alt_setting(fx2_handle, RX_INTERFACE, RX_ALTINTERFACE);
+      if (ret !=0)
       {
-          return -1;
+          printf ("Failed to start alternate setting:%s", libusb_error_name(ret));
+          libusb_release_interface (fx2_handle, RX_INTERFACE);
+          libusb_close (fx2_handle);
+          status = -1;
       }
+
+      return status;
   }
 }
 /*----------------------------------------------------------------------------------------------*/
 
 
 /*----------------------------------------------------------------------------------------------*/
-fusb_devhandle* gn3s::make_devhandle(usb_dev_handle *udh)
+bool gn3s::usb_fx2_start_transfers()
 {
-  return new fusb_devhandle_linux(udh);
+    int ret;
+    bool success = true;
+    bufptr = 0;
+    bcount = 0;
+
+    for (int i = 0; i < USB_NTRANSFERS; i++)
+    {
+        transfer[i] = libusb_alloc_transfer(0);
+        libusb_fill_bulk_transfer(transfer[i], fx2_handle, RX_ENDPOINT, buffer[i],
+                USB_BUFFER_SIZE, libusb_transfer_cb_fn(&callback), nullptr, 1000);
+        ret = libusb_submit_transfer(transfer[i]);
+        if (ret != 0)
+        {
+            printf ("Failed to start endpoint streaming:%s", libusb_error_name(ret));
+            success = false;
+        }
+    }
+    return (success);
 }
 /*----------------------------------------------------------------------------------------------*/
 
 
 /*----------------------------------------------------------------------------------------------*/
-int gn3s::read(void *buff, int bytes)
+int gn3s::read(unsigned char *buff, int bytes)
 {
-	return(fx2_config.d_ephandle->read(buff, bytes));
+    int n;
+    if (bcount < bytes)
+        n = bcount;
+    else
+        n = bytes;
+    for (int i=0; i<n; i++)
+    {
+        buff[i] = buffer[0][bufptr++];
+        if (bufptr == sizeof(buffer))
+            bufptr = 0;
+    }
+    return(n);
 }
 /*----------------------------------------------------------------------------------------------*/
 
@@ -523,7 +500,7 @@ bool gn3s::usrp_xfer(char VRQ_TYPE, bool start)
 {
   int r;
 
-  r = write_cmd(VRQ_TYPE, start, 0, 0, 0);
+  r = write_cmd(VRQ_TYPE, start, 0, nullptr, 0);
 
   return(r == 0);
 }
@@ -537,13 +514,13 @@ int gn3s::write_cmd(int request, int value, int index, unsigned char *bytes, int
 	int r;
 
 	requesttype = (request & 0x80) ? VRT_VENDOR_IN : VRT_VENDOR_OUT;
-	r = usb_control_msg (fx2_config.udev, requesttype, request, value, index, (char *) bytes, len, 1000);
-	if(r < 0)
+    r = libusb_control_transfer (fx2_handle, requesttype, request, value, index, (unsigned char *) bytes, len, 1000);
+    if(r < 0)
 	{
 		/* We get EPIPE if the firmware stalls the endpoint. */
 		if(errno != EPIPE)
-			fprintf (stdout, "usb_control_msg failed: %s\n", usb_strerror());
+            fprintf (stdout, "usb_control_msg failed: %s\n", libusb_error_name(r));
 	}
-	return r;
+    return r;
 }
 /*----------------------------------------------------------------------------------------------*/
