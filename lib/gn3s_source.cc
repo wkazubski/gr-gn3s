@@ -79,7 +79,7 @@ void gn3s_Source::Open_GN3S()
 
 
 	/* Everything is super! */
-    fprintf(stdout,"GN3S Start 1\n");
+//    fprintf(stdout,"GN3S Start 1\n");
 
 }
 /*----------------------------------------------------------------------------------------------*/

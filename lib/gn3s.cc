@@ -51,11 +51,11 @@ static void LIBUSB_CALL callback(libusb_transfer *transfer)
     if (bcount > sizeof(buffer))
         bcount -= sizeof(buffer);
 //TEST
-    printf("***Callback!****\n");
+//    printf("***Callback!****\n");
 //    time(&rawtime);
 //    timeinfo = localtime (&rawtime);
-    printf("bytes: %d status: %d count %d \n", transfer->actual_length, transfer->status, bcount);
-    fflush(stdout);
+//    printf("bytes: %d status: %d count %d \n", transfer->actual_length, transfer->status, bcount);
+//    fflush(stdout);
 //TEST
     libusb_submit_transfer(transfer);
 }
