@@ -400,13 +400,7 @@ bool gn3s::usb_fx2_configure(struct libusb_device *fx2, fx2Config *fx2c)
           printf ("\nDevice not programmed? \n");
           libusb_close (fx2_handle);
           status = -1;
-     }    ret = usb_fx2_start_transfers();
-      if(!ret)
-      {
-          printf("Could not start USB transfers\n");
-          throw(1);
       }
-
       else
           printf("Claimed interface\n");
 
