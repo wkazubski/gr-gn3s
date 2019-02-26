@@ -1,17 +1,3 @@
-
-
-find_path(USB_INCLUDE_DIR NAMES usb.h
-          PATHS /usr/include
-                /usr/local/include
-)
-
-if(NOT USB_INCLUDE_DIR)
-   message(STATUS "libusb has not been found.")
-   message(STATUS "You can install it by 'sudo apt-get install libusb-dev' ")
-   message(FATAL_ERROR "libusb is required for building gr-gn3s")
-endif(NOT USB_INCLUDE_DIR)
-
-
 INCLUDE(FindPkgConfig)
 
 if(NOT LIBUSB_FOUND)
