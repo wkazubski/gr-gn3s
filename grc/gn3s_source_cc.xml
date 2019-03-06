@@ -1,8 +1,9 @@
 <?xml version="1.0"?>
 <block>
-  <name>gn3s_source</name>
+  <name>GN3S Source</name>
   <key>gn3s_source_cc</key>
   <category>GN3S</category>
+  <throttle>1</throttle>
   <import>import gn3s</import>
   <make>gn3s.source_cc()</make>
 
