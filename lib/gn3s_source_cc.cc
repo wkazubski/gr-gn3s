@@ -31,10 +31,14 @@
 #include "config.h"
 #endif
 
+#include <gn3s_source.h>
 #include <gn3s_source_cc.h>
 #include <gn3s_defines.h>
 #include <gnuradio/io_signature.h>
 
+  /* Create the GN3S object*/
+static gn3s_Source *gn3s_drv;
+static gn3s_ms_packet packet;
 
 /*
  * Create a new instance of howto_square_ff and return

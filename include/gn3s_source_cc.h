@@ -32,8 +32,6 @@
 
 #include "gn3s_api.h"
 #include <gnuradio/block.h>
-#include "gn3s_source.h"
-#include "gn3s_defines.h"
 
 class gn3s_source_cc;
 
@@ -70,10 +68,6 @@ class GN3S_API gn3s_source_cc : public gr::block
 private:
   // The friend declaration allows gn3s_source to
   // access the private constructor.
-
-  /* Create the GN3S object*/
-  gn3s_Source *gn3s_drv;
-  gn3s_ms_packet packet;
 
   friend GN3S_API gn3s_source_cc_sptr gn3s_make_source_cc ();
 
