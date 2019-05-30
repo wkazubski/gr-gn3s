@@ -407,7 +407,7 @@ bool gn3s::usb_fx2_configure(struct libusb_device *fx2, fx2Config *fx2c)
       ret = libusb_set_interface_alt_setting(fx2_handle, RX_INTERFACE, RX_ALTINTERFACE);
       if (ret !=0)
       {
-          printf ("Failed to start alternate setting:%s", libusb_error_name(ret));
+          printf ("Failed to start alternate setting: %s\n", libusb_error_name(ret));
           libusb_release_interface (fx2_handle, RX_INTERFACE);
           libusb_close (fx2_handle);
           status = -1;
@@ -435,7 +435,7 @@ bool gn3s::usb_fx2_start_transfers()
         ret = libusb_submit_transfer(transfer[i]);
         if (ret != 0)
         {
-            printf ("Failed to start endpoint streaming:%s", libusb_error_name(ret));
+            printf ("Failed to start endpoint streaming: %s\n", libusb_error_name(ret));
             success = false;
         }
     }
