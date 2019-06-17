@@ -48,7 +48,7 @@ static int bufptr;
 static void LIBUSB_CALL callback(libusb_transfer *transfer)
 {
     bcount += transfer->actual_length;
-    if (bcount > sizeof(buffer))
+    if (bcount >= sizeof(buffer))
         bcount -= sizeof(buffer);
     if (transfer->status == LIBUSB_TRANSFER_COMPLETED)
     {
@@ -468,9 +468,11 @@ bool gn3s::usb_fx2_cancel_transfers()
 int gn3s::read(unsigned char *buff, int bytes)
 {
     int n;
-    if (bcount < bytes)
-        n = bcount;
+    if (bcount < bufptr)
+        n = bcount +sizeof(buffer) - bufptr;
     else
+        n = bcount - bufptr;
+    if (n > bytes)
         n = bytes;
     for (int i=0; i<n; i++)
     {
