@@ -121,6 +121,7 @@ class gn3s
         struct libusb_device* usb_fx2_find(unsigned int vid, unsigned int pid, char info, int ignore);
         bool usb_fx2_configure(struct libusb_device *fx2, fx2Config *fx2c);
         bool usb_fx2_start_transfers();
+        bool usb_fx2_cancel_transfers();
         int read(unsigned char *buff, int bytes);
 		int write_cmd(int request, int value, int index, unsigned char *bytes, int len);
 		bool _get_status(int which, bool *trouble);

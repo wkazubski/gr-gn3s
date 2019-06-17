@@ -50,14 +50,14 @@ static void LIBUSB_CALL callback(libusb_transfer *transfer)
     bcount += transfer->actual_length;
     if (bcount > sizeof(buffer))
         bcount -= sizeof(buffer);
-//TEST
-//    printf("***Callback!****\n");
-//    time(&rawtime);
-//    timeinfo = localtime (&rawtime);
-//    printf("bytes: %d status: %d count %d \n", transfer->actual_length, transfer->status, bcount);
-//    fflush(stdout);
-//TEST
-    libusb_submit_transfer(transfer);
+    if (transfer->status == LIBUSB_TRANSFER_COMPLETED)
+    {
+        libusb_submit_transfer(transfer);
+    }
+    else
+    {
+        libusb_free_transfer(transfer);
+    }
 }
 /*----------------------------------------------------------------------------------------------*/
 
@@ -150,7 +150,8 @@ gn3s::~gn3s()
 
 	usrp_xfer(VRQ_XFER, 0);
 
-    //delete gn3s_firmware;
+    usb_fx2_cancel_transfers();
+    usleep(1000);
 
     libusb_release_interface(fx2_handle, RX_INTERFACE);
     libusb_close(fx2_handle);
@@ -436,6 +437,25 @@ bool gn3s::usb_fx2_start_transfers()
         if (ret != 0)
         {
             printf ("Failed to start endpoint streaming:%s", libusb_error_name(ret));
+            success = false;
+        }
+    }
+    return (success);
+}
+/*----------------------------------------------------------------------------------------------*/
+
+
+/*----------------------------------------------------------------------------------------------*/
+bool gn3s::usb_fx2_cancel_transfers()
+{
+    int ret;
+    bool success = true;
+    for (int i = 0; i < USB_NTRANSFERS; i++)
+    {
+        ret = libusb_cancel_transfer(transfer[i]);
+        if (ret != 0)
+        {
+            printf ("Failed to cancel transfer: %s\n", libusb_error_name(ret));
             success = false;
         }
     }
