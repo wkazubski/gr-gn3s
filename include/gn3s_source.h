@@ -65,13 +65,13 @@ class gn3s_Source
 
 		void Open_GN3S();			//!< Open the SparkFun GN3S Sampler
 		void Close_GN3S();			//!< Close the SparkFun GN3S Sampler
-		void Read_GN3S(gn3s_ms_packet *_p,int n_samples);	//!< Read from the SparkFun GN3S Sampler
+		int Read_GN3S(gn3s_ms_packet *_p,int n_samples);	//!< Read from the SparkFun GN3S Sampler
 
 	public:
 
 		gn3s_Source();	//!< Create the GPS source with the proper hardware type
 		~gn3s_Source();					//!< Kill the object
-		void Read(gn3s_ms_packet *_p,int n_samples);		//!< Read in a single ms of data
+		int Read(gn3s_ms_packet *_p,int n_samples);		//!< Read in a single ms of data
 		int getScale(){return(agc_scale);}
 		int getOvrflw(){return(overflw);}
 

@@ -102,13 +102,11 @@ int n_samples_rx;
   
 if (noutput_items<=GN3S_SAMPS_5MS)
 {
-  gn3s_drv->Read(&packet,noutput_items);
-  n_samples_rx = noutput_items;
+  n_samples_rx = gn3s_drv->Read(&packet,noutput_items);
 }
 else
 {
-  gn3s_drv->Read(&packet,GN3S_SAMPS_5MS);
-  n_samples_rx = GN3S_SAMPS_5MS;
+  n_samples_rx = gn3s_drv->Read(&packet,GN3S_SAMPS_5MS);
 }
   for (int i = 0; i < n_samples_rx; i++)
   {

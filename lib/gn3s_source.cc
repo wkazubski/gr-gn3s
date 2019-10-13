@@ -59,11 +59,12 @@ gn3s_Source::~gn3s_Source()
 
 
 /*----------------------------------------------------------------------------------------------*/
-void gn3s_Source::Read(gn3s_ms_packet *_p,int n_samples)
+int gn3s_Source::Read(gn3s_ms_packet *_p,int n_samples)
 {
 
-	Read_GN3S(_p,n_samples);
+	int n = Read_GN3S(_p,n_samples);
 	ms_count++;
+	return n;
 
 }
 /*----------------------------------------------------------------------------------------------*/
@@ -98,7 +99,7 @@ void gn3s_Source::Close_GN3S()
 
 
 /*----------------------------------------------------------------------------------------------*/
-void gn3s_Source::Read_GN3S(gn3s_ms_packet *_p,int n_samples)
+int gn3s_Source::Read_GN3S(gn3s_ms_packet *_p,int n_samples)
 {
 
     int bread;
@@ -142,10 +143,10 @@ void gn3s_Source::Read_GN3S(gn3s_ms_packet *_p,int n_samples)
 		// FUSB Read...
 		//ret = fx2c.d_ephandle->read (buf, bufsize);
 
-		if (bread != BUFSIZE) {
-		  fprintf (stderr, "fusb_read: ret = %d (bufsize: %d) \n", bread, BUFSIZE);
+//		if (bread != BUFSIZE) {
+//		  fprintf (stderr, "fusb_read: ret = %d (bufsize: %d) \n", bread, BUFSIZE);
 //          fprintf (stderr, "%s\n", libusb_error_name());
-		}
+//		}
 
 		// Store IF data as 8bit signed values
 	   pbuff = (short int *)&buff[0];
@@ -155,18 +156,18 @@ void gn3s_Source::Read_GN3S(gn3s_ms_packet *_p,int n_samples)
 	   else
 	   { shift = 1; }
 
-	   if ((gbuff[BUFSIZE-1] & 0x02) == 0) //if true, we don't drop last data byte
+	   if ((gbuff[bread-1] & 0x02) == 0) //if true, we don't drop last data byte
 	   { endshift = 0; }
 	   else
 	   { endshift = 1; }
 
-	       for (int j=0;j<BUFSIZE;j++)
+	       for (int j=0;j<bread;j++)
 	       {
 	           if (shift == 1)
 	           {
-	               if ((j == (BUFSIZE-1)) && (endshift == 0))
+	               if ((j == (bread-1)) && (endshift == 0))
 	                 { pbuff[j] = 0; }
-	               else if ((j == (BUFSIZE-1)) && (endshift == 1))
+	               else if ((j == (bread-1)) && (endshift == 1))
 	                 { pbuff[j-1] = 0;  }
 	               else
 	               {
@@ -175,7 +176,7 @@ void gn3s_Source::Read_GN3S(gn3s_ms_packet *_p,int n_samples)
 	               }
 	           } else if (shift == 0)
 	           {
-	               if ((j == (BUFSIZE-1)) && (endshift == 1))
+	               if ((j == (bread-1)) && (endshift == 1))
 	                 { pbuff[j] = 0; }
 	               else
 	               { pbuff[j] = LUT4120[gbuff[j] & 0x1]; }
@@ -184,4 +185,5 @@ void gn3s_Source::Read_GN3S(gn3s_ms_packet *_p,int n_samples)
 	       }
 	/* Copy to destination */
 	memcpy(_p->data, pbuff, n_samples*sizeof(GN3S_CPX));
+	return (bread / 2);
 }
